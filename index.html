@@ -16,22 +16,34 @@
 body{margin:0;padding:1rem;line-height:1.4}
 h1{margin:0 0 1rem;font-size:1.4rem;text-align:center}
 section.month{border:1px solid var(--border);margin-bottom:.8rem;border-radius:6px;overflow:hidden}
+
 header.month-head{display:flex;align-items:center;justify-content:space-between;background:#f0f0f0;padding:.4rem .6rem;cursor:pointer}
 header.month-head h2{margin:0;font-size:1.1rem}
 header.month-head .stats{font-size:.8rem;color:#666}
 header.month-head .toggle{font-weight:bold;transform:rotate(90deg);transition:.2s}
 header.month-head[aria-expanded="true"] .toggle{transform:rotate(0)}
-.calendar{display:grid;grid-template-columns:repeat(7,1fr);border-top:1px solid var(--border)}
-.day-name,.day{padding:.35rem;border-right:1px solid var(--border);border-bottom:1px solid var(--border);min-height:4.5rem;position:relative;font-size:.8rem}
+
+.calendar-wrapper{overflow-x:auto}              /* NOVO –  permite arrastar */
+.calendar{display:grid;grid-template-columns:repeat(7,1fr);
+          border-top:1px solid var(--border);min-width:560px} /* ~80 px × 7 */
+
+.day-name,.day{padding:.35rem;border-right:1px solid var(--border);
+               border-bottom:1px solid var(--border);min-height:4.5rem;
+               position:relative;font-size:.8rem;box-sizing:border-box}
 .day-name{background:#eee;text-align:center;font-weight:600}
 .day:nth-child(7n),.day-name:nth-child(7n){border-right:none}
 .day.weekend{background:var(--weekend)}
 .day.today{background:var(--today)}
 .day .date{font-size:.75rem;font-weight:600}
-.badge{background:var(--badge);color:var(--badge-text);border-radius:4px;padding:0 .2rem;font-size:.66rem;display:inline-block;margin-top:.2rem}
+.badge{background:var(--badge);color:var(--badge-text);border-radius:4px;
+       padding:0 .2rem;font-size:.66rem;display:inline-block;margin-top:.2rem}
 .check{display:block;margin-top:.15rem}
-.week-head{grid-column:1/8;background:#e4eefc;padding:.2rem .4rem;font-size:.75rem;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+
+.week-head{grid-column:1/8;background:#e4eefc;padding:.2rem .4rem;font-size:.75rem;
+           border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+
 button{padding:.3rem .6rem;margin:.4rem auto;display:block}
+
 @media print{
   button,header.month-head .toggle{display:none!important}
   section.month[aria-expanded="false"]{display:none!important}
@@ -71,8 +83,8 @@ function rangeMonths(d1,d2){
 // ---------- Rotação ----------
 function roomForTrash(date){
   const days=Math.floor((date-startDate)/86400000);
-  if(days%2===1) return '';                    
-  const idx=Math.floor(days/2)%rooms.length;   
+  if(days%2===1) return ''; // dia “vazio” (sem quarto)
+  const idx=Math.floor(days/2)%rooms.length;
   return rooms[idx];
 }
 function roomForRugs(weekId){
@@ -91,14 +103,23 @@ function loadCheck(type,id){return localStorage.getItem(`${type}-${id}`)==1;}
 const monthsDiv=document.getElementById('months'), now=new Date();
 rangeMonths(startDate,endDate).forEach(m=>{
   const sec=document.createElement('section'), head=document.createElement('header');
-  sec.className='month';sec.setAttribute('aria-expanded',
-    m.getFullYear()>now.getFullYear()||(m.getFullYear()==now.getFullYear()&&m.getMonth()>=now.getMonth()));
+  sec.className='month';
+  sec.setAttribute('aria-expanded',
+    m.getFullYear()>now.getFullYear()||
+    (m.getFullYear()==now.getFullYear()&&m.getMonth()>=now.getMonth()));
+
   head.className='month-head';
   head.innerHTML=`<span class="toggle">▶</span><h2>${m.toLocaleString(locale,{month:'long',year:'numeric'})}</h2><span class="stats"></span>`;
   head.onclick=()=>sec.setAttribute('aria-expanded',sec.getAttribute('aria-expanded')==='true'?'false':'true');
   sec.appendChild(head);
 
+  // --- Wrapper de scroll horizontal ---
+  const wrap=document.createElement('div');
+  wrap.className='calendar-wrapper';
+
   const cal=document.createElement('div');cal.className='calendar';
+  wrap.appendChild(cal); sec.appendChild(wrap);
+
   ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'].forEach(d=>cal.insertAdjacentHTML('beforeend',`<div class="day-name">${d}</div>`));
 
   const firstDow=(m.getDay()+6)%7, dim=new Date(m.getFullYear(),m.getMonth()+1,0).getDate();
@@ -107,34 +128,37 @@ rangeMonths(startDate,endDate).forEach(m=>{
   let tTot=0,tDone=0,rTot=0,rDone=0;
   for(let d=1;d<=dim;d++){
     const date=new Date(m.getFullYear(),m.getMonth(),d);
-    if(date.getDay()===1){                      // cabeçalho só na segunda-feira
+    if(date.getDay()===1){ // Segunda — cabeçalho da semana
       const w=isoWeek(date), room=roomForRugs(w), done=loadCheck('rugs',w);
-      rTot+=1;if(done)rDone+=1;
+      rTot++; if(done) rDone++;
       cal.insertAdjacentHTML('beforeend',
         `<div class="week-head"><span>Semana ${w} — Tapetes: ${room}</span>
-          <label><input type="checkbox" ${done?'checked':''}></label></div>`);
+         <label><input type="checkbox" ${done?'checked':''}></label></div>`);
       cal.lastElementChild.querySelector('input').onchange=e=>{saveCheck('rugs',w,e.target.checked);upd();}
     }
 
     const room=roomForTrash(date), chkId=date.toISOString().slice(0,10), done=loadCheck('trash',chkId);
-    if(room){tTot+=1;if(done)tDone+=1;}
+    if(room){tTot++; if(done) tDone++;}
     cal.insertAdjacentHTML('beforeend',
       `<div class="day${[0,6].includes(date.getDay())?' weekend':''}${date.toDateString()==now.toDateString()?' today':''}">
          <span class="date">${d}</span>`+
          (room?`<span class="badge">Lixo: ${room}</span>
-         <label class="check"><input type="checkbox" ${done?'checked':''}></label>`:'')+
+                <label class="check"><input type="checkbox" ${done?'checked':''}></label>`:'')+
        `</div>`);
     const inp=cal.lastElementChild.querySelector('input');
     if(inp) inp.onchange=e=>{saveCheck('trash',chkId,e.target.checked);upd();}
   }
-  sec.appendChild(cal);monthsDiv.appendChild(sec);
+  monthsDiv.appendChild(sec);
 
-  function upd(){head.querySelector('.stats').textContent=`Lixo ${tDone}/${tTot} ‧ Tapetes ${rDone}/${rTot}`;}
+  function upd(){
+    head.querySelector('.stats').textContent=`Lixo ${tDone}/${tTot} ‧ Tapetes ${rDone}/${rTot}`;
+  }
   upd();
 });
-document.getElementById('clear').onclick=()=>{if(confirm('Apagar todos os registos?')){localStorage.clear();location.reload();}};
+
+document.getElementById('clear').onclick=()=>{
+  if(confirm('Apagar todos os registos?')){localStorage.clear();location.reload();}
+};
 </script>
 </body>
 </html>
-<script>
-
