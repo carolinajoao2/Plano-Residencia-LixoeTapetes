@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<title>Plano de Lixo &amp; Tapetes (Nov 2025 – Jul 2026)</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+:root{
+  --today:#feeec6;
+  --weekend:#f7f7f7;
+  --badge:#0075ff;
+  --badge-text:#fff;
+  --border:#ddd;
+  font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu;
+}
+body{margin:0;padding:1rem;line-height:1.4}
+h1{margin:0 0 1rem;font-size:1.4rem;text-align:center}
+section.month{border:1px solid var(--border);margin-bottom:.8rem;border-radius:6px;overflow:hidden}
+header.month-head{display:flex;align-items:center;justify-content:space-between;background:#f0f0f0;padding:.4rem .6rem;cursor:pointer}
+header.month-head h2{margin:0;font-size:1.1rem}
+header.month-head .stats{font-size:.8rem;color:#666}
+header.month-head .toggle{font-weight:bold;transform:rotate(90deg);transition:.2s}
+header.month-head[aria-expanded="true"] .toggle{transform:rotate(0)}
+.calendar{display:grid;grid-template-columns:repeat(7,1fr);border-top:1px solid var(--border)}
+.day-name,.day{padding:.35rem;border-right:1px solid var(--border);border-bottom:1px solid var(--border);min-height:4.5rem;position:relative;font-size:.8rem}
+.day-name{background:#eee;text-align:center;font-weight:600}
+.day:nth-child(7n),.day-name:nth-child(7n){border-right:none}
+.day.weekend{background:var(--weekend)}
+.day.today{background:var(--today)}
+.day .date{font-size:.75rem;font-weight:600}
+.badge{background:var(--badge);color:var(--badge-text);border-radius:4px;padding:0 .2rem;font-size:.66rem;display:inline-block;margin-top:.2rem}
+.check{display:block;margin-top:.15rem}
+.week-head{grid-column:1/8;background:#e4eefc;padding:.2rem .4rem;font-size:.75rem;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+button{padding:.3rem .6rem;margin:.4rem auto;display:block}
+@media print{
+  button,header.month-head .toggle{display:none!important}
+  section.month[aria-expanded="false"]{display:none!important}
+}
+</style>
+</head>
+<body>
+<h1>Plano de Lixo &amp; Tapetes (Nov 2025 – Jul 2026)</h1>
+<p style="font-size:.85rem;text-align:center;margin:0 0 1rem">
+  ✓ assinala “Feito” para registar.<br>
+  Lixo: rotação <strong>2 dias com quarto / 1 dia vazio</strong> pelos quartos 2.1 → 2.11.<br>
+  Tapetes: rotação semanal pelos mesmos quartos.
+</p>
+<div id="months"></div>
+<button id="clear">Limpar registos</button>
+
+<script>
+// ---------- Configuração ----------
+const startDate = new Date('2025-11-01');
+const endDate   = new Date('2026-07-31');
+const rooms     = Array.from({length:11},(_,i)=>`2.${i+1}`);
+const locale    = 'pt-PT';
+
+// ---------- Utilitários ----------
+function isoWeek(d){
+  const t=new Date(d);t.setHours(0,0,0,0);
+  t.setDate(t.getDate()+(4-(t.getDay()||7)));
+  const yearStart=new Date(t.getFullYear(),0,1);
+  return t.getFullYear()+'-W'+String(Math.ceil(((t-yearStart)/86400000+1)/7)).padStart(2,'0');
+}
+function rangeMonths(d1,d2){
+  const out=[];let m=new Date(d1.getFullYear(),d1.getMonth(),1);
+  while(m<=d2){out.push(new Date(m));m.setMonth(m.getMonth()+1)}
+  return out;
+}
+
+// ---------- Rotação ----------
+function roomForTrash(date){
+  const days=Math.floor((date-startDate)/86400000);
+  if(days%2===1) return '';                    
+  const idx=Math.floor(days/2)%rooms.length;   
+  return rooms[idx];
+}
+function roomForRugs(weekId){
+  const firstWeek=isoWeek(startDate);
+  const [y1,w1]=firstWeek.split('-W').map(Number);
+  const [y,w]=weekId.split('-W').map(Number);
+  const diff=(y-y1)*52+(w-w1);
+  return rooms[((diff%rooms.length)+rooms.length)%rooms.length];
+}
+
+// ---------- LocalStorage ----------
+function saveCheck(type,id,v){localStorage.setItem(`${type}-${id}`,v?1:0);}
+function loadCheck(type,id){return localStorage.getItem(`${type}-${id}`)==1;}
+
+// ---------- Geração ----------
+const monthsDiv=document.getElementById('months'), now=new Date();
+rangeMonths(startDate,endDate).forEach(m=>{
+  const sec=document.createElement('section'), head=document.createElement('header');
+  sec.className='month';sec.setAttribute('aria-expanded',
+    m.getFullYear()>now.getFullYear()||(m.getFullYear()==now.getFullYear()&&m.getMonth()>=now.getMonth()));
+  head.className='month-head';
+  head.innerHTML=`<span class="toggle">▶</span><h2>${m.toLocaleString(locale,{month:'long',year:'numeric'})}</h2><span class="stats"></span>`;
+  head.onclick=()=>sec.setAttribute('aria-expanded',sec.getAttribute('aria-expanded')==='true'?'false':'true');
+  sec.appendChild(head);
+
+  const cal=document.createElement('div');cal.className='calendar';
+  ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'].forEach(d=>cal.insertAdjacentHTML('beforeend',`<div class="day-name">${d}</div>`));
+
+  const firstDow=(m.getDay()+6)%7, dim=new Date(m.getFullYear(),m.getMonth()+1,0).getDate();
+  for(let i=0;i<firstDow;i++)cal.insertAdjacentHTML('beforeend','<div class="day"></div>');
+
+  let tTot=0,tDone=0,rTot=0,rDone=0;
+  for(let d=1;d<=dim;d++){
+    const date=new Date(m.getFullYear(),m.getMonth(),d);
+    if(date.getDay()===1){                      // cabeçalho só na segunda-feira
+      const w=isoWeek(date), room=roomForRugs(w), done=loadCheck('rugs',w);
+      rTot+=1;if(done)rDone+=1;
+      cal.insertAdjacentHTML('beforeend',
+        `<div class="week-head"><span>Semana ${w} — Tapetes: ${room}</span>
+          <label><input type="checkbox" ${done?'checked':''}></label></div>`);
+      cal.lastElementChild.querySelector('input').onchange=e=>{saveCheck('rugs',w,e.target.checked);upd();}
+    }
+
+    const room=roomForTrash(date), chkId=date.toISOString().slice(0,10), done=loadCheck('trash',chkId);
+    if(room){tTot+=1;if(done)tDone+=1;}
+    cal.insertAdjacentHTML('beforeend',
+      `<div class="day${[0,6].includes(date.getDay())?' weekend':''}${date.toDateString()==now.toDateString()?' today':''}">
+         <span class="date">${d}</span>`+
+         (room?`<span class="badge">Lixo: ${room}</span>
+         <label class="check"><input type="checkbox" ${done?'checked':''}></label>`:'')+
+       `</div>`);
+    const inp=cal.lastElementChild.querySelector('input');
+    if(inp) inp.onchange=e=>{saveCheck('trash',chkId,e.target.checked);upd();}
+  }
+  sec.appendChild(cal);monthsDiv.appendChild(sec);
+
+  function upd(){head.querySelector('.stats').textContent=`Lixo ${tDone}/${tTot} ‧ Tapetes ${rDone}/${rTot}`;}
+  upd();
+});
+document.getElementById('clear').onclick=()=>{if(confirm('Apagar todos os registos?')){localStorage.clear();location.reload();}};
+</script>
+</body>
+</html>
+<script>
+
