@@ -38,11 +38,6 @@ button{padding:.3rem .6rem;margin:.4rem auto;display:block}
 </head>
 <body>
 <h1>Plano de Lixo &amp; Tapetes (Nov 2025 – Jul 2026)</h1>
-<p style="font-size:.85rem;text-align:center;margin:0 0 1rem">
-  ✓ assinala “Feito” para registar.<br>
-  <strong>Lixo</strong>: apenas <u>2.ª, 4.ª e 6.ª</u>; rotação pelos quartos 2.1 → 2.11 (dias intermédios vazios).<br>
-  <strong>Tapetes</strong>: rotação de <u>2&nbsp;em&nbsp;2 semanas</u> pelos mesmos quartos.
-</p>
 
 <div id="months"></div>
 <button id="clear">Limpar registos</button>
@@ -51,7 +46,7 @@ button{padding:.3rem .6rem;margin:.4rem auto;display:block}
 // ---------- Configuração ----------
 const startDate=new Date('2025-11-01');
 const endDate=new Date('2026-07-31');
-const rooms=[...Array(11)].map((_,i)=>`2.${i+1}`);
+const rooms=[...Array(11)].map((_,i)=>`2.${i+1}`).filter(r=>r!=='2.3');
 const locale='pt-PT';
 
 // ---------- Utilitários ----------
@@ -68,28 +63,57 @@ function rangeMonths(d1,d2){
 }
 
 // ---------- Rotação ----------
-const eligibleTrashWeekdays=[1,3,5];               // 2ª,4ª,6ª (Mon=1)
-function roomForTrash(date){
-  if(!eligibleTrashWeekdays.includes(date.getDay())) return '';
-  // contar quantos dias elegíveis já passaram desde a data inicial
-  let count=0;
-  for(let d=new Date(startDate);d<date;d.setDate(d.getDate()+1))
-    if(eligibleTrashWeekdays.includes(d.getDay())) count++;
-  return rooms[count%rooms.length];
+const eligibleTrashWeekdays = [1,3,5];      // 2ª,4ª,6ª (Mon=1)
+const overrideStart = new Date();            // começa hoje
+overrideStart.setHours(0,0,0,0);
+const overrideEnd   = new Date('2026-02-01'); // até 1 Fev 2026 (exclusivo)
+
+// quartos sem o 2.3 durante o override
+const roomsNo23 = rooms.filter(r => r !== '2.3');
+
+// util: primeiro dia elegível (2ª/4ª/6ª) em/apos uma data
+function firstEligibleOnOrAfter(d){
+  const x = new Date(d); x.setHours(0,0,0,0);
+  while(!eligibleTrashWeekdays.includes(x.getDay())) x.setDate(x.getDate()+1);
+  return x;
 }
-function roomForRugs(weekId){
-  const firstWeek = isoWeek(startDate);                 // ex. "2025-W44"
-  const [y0,w0]   = firstWeek.split('-W').map(Number);
-  const [y ,w ]   = weekId   .split('-W').map(Number);
 
-  const diffWeeks = (y - y0)*52 + (w - w0);             // Δ semanas
+// conta quantos dias elegíveis existem entre duas datas (inclusive do fim)
+function countEligible(from, to){
+  let c = 0, d = new Date(from);
+  d.setHours(0,0,0,0);
+  while (d <= to){
+    if (eligibleTrashWeekdays.includes(d.getDay())) c++;
+    d.setDate(d.getDate()+1);
+  }
+  return c;
+}
 
-  // SEMANA EM BRANCO?
-  if (diffWeeks % 2 === 1) return '';                   // ímpar → vazia
+const overrideAnchor = firstEligibleOnOrAfter(overrideStart);
 
-  // SEMANA COM TAPETES (quarto muda a cada 2 semanas)
-  const idx = (diffWeeks / 2) % rooms.length;           // 0,1,2,…10 cíclico
-  return rooms[idx];
+function roomForTrash(date){
+  // fora dos dias de lixo: nunca há atribuição
+  if (!eligibleTrashWeekdays.includes(date.getDay())) return '';
+
+  // período especial (até fevereiro): alterna “com / vazio” e ignora 2.3
+  if (date >= overrideAnchor && date < overrideEnd){
+    // k = índice do dia elegível (0 no primeiro dia ≥ hoje)
+    const k = countEligible(overrideAnchor, date) - 1; // -1 para 0-based
+    if (k % 2 === 1) return '';                        // dias ímpares → vazio
+    const idx = Math.floor(k/2) % roomsNo23.length;    // 0,1,2,… cíclico
+    return roomsNo23[idx];                             // 2.1, -, 2.2, -, 2.4, …
+  }
+
+  // funcionamento normal (antes do reset e depois de fevereiro):
+  // roda por todos os quartos (inclui 2.3) em cada dia elegível
+  let count = 0;
+  const d = new Date(startDate);
+  d.setHours(0,0,0,0);
+  while (d < date){
+    if (eligibleTrashWeekdays.includes(d.getDay())) count++;
+    d.setDate(d.getDate()+1);
+  }
+  return rooms[count % rooms.length];
 }
 
 
@@ -166,3 +190,5 @@ document.getElementById('clear').onclick=()=>{if(confirm('Apagar todos os regist
 </script>
 </body>
 </html>
+
+
