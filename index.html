@@ -51,7 +51,7 @@ button{padding:.3rem .6rem;margin:.4rem auto;display:block}
 // ---------- Configuração ----------
 const startDate=new Date('2025-11-01');
 const endDate=new Date('2026-07-31');
-const rooms=[...Array(11)].map((_,i)=>`2.${i+1}`);
+const rooms=[...Array(11)].map((_,i)=>`2.${i+1}`).filter(r=>r!=='2.3');
 const locale='pt-PT';
 
 // ---------- Utilitários ----------
@@ -166,3 +166,4 @@ document.getElementById('clear').onclick=()=>{if(confirm('Apagar todos os regist
 </script>
 </body>
 </html>
+
